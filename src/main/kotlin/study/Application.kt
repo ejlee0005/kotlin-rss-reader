@@ -1,83 +1,42 @@
-import study.RSSModel
-import java.net.URL
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
-import javax.xml.parsers.DocumentBuilderFactory
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.runBlocking
+import study.Channel
+import study.Post
+import java.time.format.DateTimeFormatter
+import kotlin.collections.sortedByDescending
+import kotlin.collections.take
 
-val blogWoowahan = "https://techblog.woowahan.com/feed"
-val blogKakao = "https://tech.kakao.com/blog/feed"
-val blogKurly = "https://helloworld.kurly.com/feed"
+fun main() =
+    runBlocking {
+        val channels =
+            listOf(
+                Channel("우아한 기술 블로그", "https://techblog.woowahan.com/feed"),
+                Channel("카카오 기술 블로그", "https://tech.kakao.com/blog/feed"),
+                Channel("컬리 기술 블로그", "https://helloworld.kurly.com/feed"),
+            )
 
-val rssList = mutableListOf<RSSModel>()
+        while (true) {
+            println("검색어를 입력하세요 (없으면 전체 출력):")
+            val keyWord = readln()
+            val posts =
+                channels.posts().filter { keyWord in it.title }
+                    .sortedByDescending { it.pubDate }
+                    .take(8)
 
-fun main() {
-    try {
-        loadData()
-        val result = inputKeyWord()
-        showResult(result)
-    } catch (e: IllegalArgumentException) {
-        println("[ERROR] ${e.message}")
-    } catch (e: IllegalStateException) {
-        println("[ERROR] ${e.message}")
+            val result =
+                posts.mapIndexed { idx, post ->
+                    "[${idx + 1}] ${post.title} (${post.pubDate.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))}) - ${post.link}\n"
+                }.joinToString("")
+            println(result)
+        }
     }
-}
 
-fun loadData() {
-    loadRSSData(blogWoowahan)
-    loadRSSData(blogKakao)
-    loadRSSData(blogKurly)
-}
-
-fun loadRSSData(url: String) {
-    val factory = DocumentBuilderFactory.newInstance()
-    val stream = factory.newDocumentBuilder().parse(URL(url).openStream())
-    val items = stream.getElementsByTagName("item")
-    val size = items.length
-
-    for (i in 0 until size) {
-        val title = stream.getElementsByTagName("title").item(i).textContent
-        val link = stream.getElementsByTagName("link").item(i).textContent
-        val pubDate = parsePubData(stream.getElementsByTagName("pubDate").item(i).textContent)
-
-        rssList.add(RSSModel(title, link, pubDate))
+private suspend fun List<Channel>.posts(): List<Post> {
+    return coroutineScope {
+        this@posts.map {
+            async { it.findPosts() }
+        }.awaitAll().flatten()
     }
-}
-
-fun parsePubData(pubDateStr: String): Date {
-    val parseDateFormat = SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss Z", Locale.ENGLISH)
-    val parseDate = parseDateFormat.parse(pubDateStr)
-    return parseDate
-}
-
-fun inputKeyWord(): List<RSSModel> {
-    println("검색어를 입력하세요 (없으면 전체 출력):")
-    val input = readLine()
-    return if (input == null) {
-        searchAll()
-    } else if (input.isEmpty()) {
-        searchAll()
-    } else {
-        search(input)
-    }
-}
-
-fun searchAll(): List<RSSModel> {
-    return rssList.sortedBy { it.pubDate }
-}
-
-fun search(input: String): List<RSSModel> {
-    return rssList.filter { it.title.contains(input) }.sortedByDescending { it.pubDate }
-}
-
-fun showResult(list: List<RSSModel>) {
-    list.forEachIndexed { idx, model ->
-        println("[$idx] ${model.title} (${parsePubDataFormat(model.pubDate)}) - ${model.link}")
-    }
-}
-
-fun parsePubDataFormat(date: Date): String {
-    val formatDateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.ENGLISH)
-    val formatDateText = formatDateFormat.format(date)
-    return formatDateText
 }
