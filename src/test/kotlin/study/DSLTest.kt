@@ -17,7 +17,7 @@ class DSLTest {
             introduce {
                 name(name) // 1) this.가 생략 2) 실제 name 함수가 있거나
             }
-        person.name shouldBe "홍길동" // kotest. 중위 표시?
+        person.name shouldBe "홍길동" // kotest
     }
 
     @Test
